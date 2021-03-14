@@ -1,0 +1,241 @@
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Creates Glue Jobs, AWS Secrets Manager Secret,  and an IAM role for the load_csv_to_mysql example.
+Parameters:
+
+  S3SourceBucket:
+    Type: String
+    Description: "Name of the S3 bucket containing the CSV file"
+    AllowedPattern: "^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$"
+    ConstraintDescription: "Bucket name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-)."
+
+  S3SourceObject:
+    Type: String
+    Description: "Prefix (path) within S3 Bucket path to the CSV file that will be processed. Example: path/to/file.csv"
+  DBHost:
+    Description: The DNS endpoint address of the database.
+    Type: String    
+
+  DBPort:
+    Description: The port to connect to on the MySQL database server. 
+    Type: Number
+    Default: 3306
+    MinValue: 0
+    MaxValue: 66536
+  VPC:
+    Type: AWS::EC2::VPC::Id
+    Description: Specify the VPC that the Glue Job will run in. A security group for the job will be created here. 
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: 'Specify the SubnetId that the Glue job will run in. IMPORTANT: If the target database server will be accessed via internet, the Glue job must run in a private subnet that can route traffic through a NAT Gateway.'
+  DBUser:
+    Description: "The database username."
+    Type: String
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+  DBPassword:
+    NoEcho: 'true'
+    Description: "The database password."
+    Type: String
+  DBName:
+    Description: The database name
+    Type: String
+    MinLength: 1
+    MaxLength: 64
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: Must begin with a letter and contain only alphanumeric characters.
+  DBTableName:
+    Description: The table name in the database where results will be written to
+    Type: String
+  
+  DropTable:
+    Description: When set, the database table will be dropped if it already exists and recreated.
+    AllowedValues: ['True', 'False']
+    Type: String
+    Default: 'False'
+  DeleteRows:
+    Description: When set, all existing rows in the table will be dropped.
+    AllowedValues: ['True', 'False']
+    Type: String
+  ChunkSize:
+    Description: How many rows form the csv to process per iteration. More rows requires more memory. Default is 10,000
+    MinValue: 1
+    Type: Number
+    Default: 10000
+
+Metadata:
+  'AWS::CloudFormation::Interface':
+    ParameterGroups:
+      - Label:
+          default: "Database Information"
+        Parameters:
+          - DBHost
+          - DBPort
+          - DBUser
+          - DBPassword
+          - DBName
+          - DBTableName   
+      - Label:
+          default: "Glue Connection Information"
+        Parameters:
+          - VPC
+          - SubnetId
+      - Label:
+          default: "Job configuration"
+        Parameters:
+          - DropTable
+          - DeleteRows
+          - ChunkSize
+
+
+Resources:
+
+  DBSecret:
+    Type: 'AWS::SecretsManager::Secret'
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete      
+    Properties:
+      SecretString: !Sub 
+          - '{ "username": "${DBUser}", "password": "${EscapedPass}", "host":"${DBHost}", "port": "${DBPort}", "dbname": "${DBName}" }'
+          - EscapedPass: !Join ['\"', !Split ['"', !Ref DBPassword]]
+
+  ScriptBucket:
+    Type: AWS::S3::Bucket
+  GlueJobSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Glue Job.
+      VpcId: !Ref 'VPC'
+  SecurityGroupIngressFromSelf:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Ingress from other resources that have this security group attached.
+      GroupId: !Ref 'GlueJobSecurityGroup'
+      IpProtocol: "-1"
+      SourceSecurityGroupId: !Ref 'GlueJobSecurityGroup'
+  GlueConnection:
+    Type: AWS::Glue::Connection
+    Properties:
+      CatalogId: !Sub ${AWS::AccountId}
+      ConnectionInput:
+        ConnectionType: NETWORK
+        Name: !Sub ${AWS::StackName}-${DBName}
+        PhysicalConnectionRequirements:
+          AvailabilityZone: !Select [ 0, !GetAZs '']
+          SecurityGroupIdList:
+            - !Ref GlueJobSecurityGroup
+          SubnetId: !Ref SubnetId
+
+  GlueJobRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - glue.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+        - arn:aws:iam::aws:policy/AWSOrganizationsReadOnlyAccess
+      Policies:
+        - PolicyName: AccessAthena
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - s3:GetBucketLocation
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:ListBucketMultipartUploads
+                  - s3:ListMultipartUploadParts
+                  - s3:AbortMultipartUpload
+                  - s3:CreateBucket
+                  - s3:PutObject
+                Resource: 'arn:aws:s3:::aws-athena-query-results-*'
+              - Effect: Allow
+                Action: 
+                  - athena:StartQueryExecution
+                  - athena:GetQueryExecution
+                  - athena:GetQueryResults
+                Resource: !Sub 'arn:aws:athena:*:${AWS::AccountId}:workgroup/*'
+              - Effect: Allow
+                Action: athena:GetQueryExecutions
+                Resource: '*'
+        - PolicyName: S3SourceReadOnly
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: 
+                - s3:GetObject
+                - s3:ListBucket
+                Resource: 
+                - !Sub 'arn:aws:s3:::${S3SourceBucket}/${S3SourceObject}/*'  
+        - PolicyName: DecryptSecret
+          PolicyDocument: 
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - secretsmanager:DescribeSecret
+                  - secretsmanager:GetSecretValue
+                Effect: Allow
+                Resource:
+                  - !Ref DBSecret
+        - PolicyName: S3TargetReadWrite
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: 
+                - s3:GetObject
+                - s3:ListBucket
+                - s3:PutObject
+                - s3:DeleteObject
+                Resource: 
+                - !Sub 'arn:aws:s3:::${ScriptBucket}/*'                
+        - PolicyName: GlueListAllBuckets
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                - s3:ListAllMyBuckets
+                - s3:headBucket
+                Resource: '*'
+
+ 
+  CSVLoad:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: !Sub ${AWS::StackName}-${DBName}-csv-load
+      Connections: 
+        Connections: [!Ref GlueConnection]
+      Command:
+        Name: pythonshell
+        PythonVersion: "3"
+        ScriptLocation: !Sub 's3://${ScriptBucket}/load_csv_to_mysql.py'
+      DefaultArguments:
+        "--s3_object": !Sub 's3://${S3SourceBucket}/{$S3SourceObject}'
+        "--db_secret_arn": !Sub "'${DBSecret}'"
+        "--table_name": !Ref DBTableName
+        "--drop_table": !Ref DropTable   
+        "--delete_rows": !Ref DeleteRows
+        "--delete_mode": "TRUNCATE"        
+        "--chunk_size": !Ref ChunkSize
+        "--extra-py-files": !Sub 's3://${ScriptBucket}/awswrangler-2.5.0-py3-none-any.whl'
+      GlueVersion: "1.0"
+      ExecutionProperty:
+        MaxConcurrentRuns: 1
+      MaxCapacity: 1
+      MaxRetries: 0
+      Role: !Ref GlueJobRole
+ 
+Outputs:
+  ScriptBucketUrl: 
+    Description: Use this link to go to the AWS S3 Console and upload your the .py script and .whl file.
+    Value: !Join ['', ['https://s3.console.aws.amazon.com/s3/buckets/', !Ref ScriptBucket ]]
