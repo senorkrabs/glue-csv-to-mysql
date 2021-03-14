@@ -8,11 +8,17 @@ import os
 import pymysql
 import logging
 import json
+import sys
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+log.addHandler(handler)
 
 
 # OPTIONAL ARGUMENT PARSER (getResolvedOptions doesn't support optional arguments at the moment)
