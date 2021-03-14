@@ -221,7 +221,7 @@ Resources:
         ScriptLocation: !Sub 's3://${ScriptBucket}/load_csv_to_mysql.py'
       DefaultArguments:
         "--s3_object": !Sub 's3://${S3SourceBucket}/{$S3SourceObject}'
-        "--db_secret_arn": !Sub "'${DBSecret}'"
+        "--db_secret_arn": !Sub '${DBSecret}'
         "--table_name": !Ref DBTableName
         "--drop_table": !Ref DropTable   
         "--delete_rows": !Ref DeleteRows
