@@ -39,8 +39,8 @@ arg_parser.add_argument('--db_user', required=False, default=None, help="The dat
 arg_parser.add_argument('--db_password', required=False, default=None, help="The database user password. It is HIGHLY recommended you store your credentials in secrets manager and use db_secret_arn instead!")
 arg_parser.add_argument('--db_secret_arn', required=False, help="ARN of AWS Secrets Manager secret containing the credentials for conneting to the database server")
 arg_parser.add_argument('--table_name', required=True, help="The name of the table that records will be inserted into. NOTE: The table will be created if it does not exist.")
-arg_parser.add_argument('--drop_table', action='store', required=False, default=False, help="When set, the database table will be dropped if it already exists and recreated.")
-arg_parser.add_argument('--delete_rows', action='store', required=False, default=False, help="When set, all existing rows in the table will be dropped.")
+arg_parser.add_argument('--drop_table', action='store_true', required=False, default=False, help="When set, the database table will be dropped if it already exists and recreated.")
+arg_parser.add_argument('--delete_rows', action='store_true', required=False, default=False, help="When set, all existing rows in the table will be dropped.")
 arg_parser.add_argument('--delete_mode', type=str, required=False, default="TRUNCATE", help="Set to TRUNCATE OR DELETE to determine how to delete existing rows when --delete_rows is set")
 arg_parser.add_argument('--chunk_size', type=int, required=False, default=10000, help="How many rows form the csv to process per iteration. More rows requires more memory. Default is 10,000")
 

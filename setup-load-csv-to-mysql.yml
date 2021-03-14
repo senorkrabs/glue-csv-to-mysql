@@ -62,6 +62,10 @@ Parameters:
     Type: Number
     Default: 10000
 
+Conditions:
+  DeleteRows: !Equals [!Ref DeleteRows, "True"]
+  DropTable: !Equals [!Ref DropTable, "True"]
+
 Metadata:
   'AWS::CloudFormation::Interface':
     ParameterGroups:
@@ -175,7 +179,7 @@ Resources:
                 - s3:GetObject
                 - s3:ListBucket
                 Resource: 
-                - !Sub 'arn:aws:s3:::${S3SourceBucket}/${S3SourceObject}/*'  
+                - !Sub 'arn:aws:s3:::${S3SourceBucket}/${S3SourceObject}*'  
         - PolicyName: DecryptSecret
           PolicyDocument: 
             Version: 2012-10-17
@@ -220,11 +224,17 @@ Resources:
         PythonVersion: "3"
         ScriptLocation: !Sub 's3://${ScriptBucket}/load_csv_to_mysql.py'
       DefaultArguments:
-        "--s3_object": !Sub 's3://${S3SourceBucket}/{$S3SourceObject}'
+        "--s3_object": !Sub 's3://${S3SourceBucket}/${S3SourceObject}'
         "--db_secret_arn": !Sub '${DBSecret}'
         "--table_name": !Ref DBTableName
-        "--drop_table": !Ref DropTable   
-        "--delete_rows": !Ref DeleteRows
+        "--drop_table": !If 
+          - DropTable
+          -  ""
+          - !Ref AWS::NoValue  
+        "--delete_rows": !If 
+          - DeleteRows
+          -  ""
+          - !Ref AWS::NoValue
         "--delete_mode": "TRUNCATE"        
         "--chunk_size": !Ref ChunkSize
         "--extra-py-files": !Sub 's3://${ScriptBucket}/awswrangler-2.5.0-py3-none-any.whl'
