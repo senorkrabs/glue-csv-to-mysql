@@ -10,7 +10,7 @@ This script uses the [AWS Data Wrangler](https://github.com/awslabs/aws-data-wra
 
 ## Functionality
 - The script uses a Glue Python Shell Job to load data from a CSV file into a Pandas DataFrame and then write it to a table in a MySQL Database.
-- It's possible to specify that the table be dropped and recreated with each execution by specifying `--drop_table True`. Alternatively, if you wish to delete all rows but leave the table (and its schema) intact, you can specify `--delete_rows True`. 
+- It's possible to specify that the table be dropped and recreated with each execution by specifying `--drop_table`. Alternatively, if you wish to delete all rows but leave the table (and its schema) intact, you can specify `--delete_rows`. 
 - The database credentials can either be specified in the parameters (**NOT RECOMMENDED EVER OUTSIDE OF LOCAL TEST**) or retrieved from an AWS Secrets Manager Secret
 
 This script is intended to be as generic/boilerplate as possible. It does not hardcode table schemas or data types, nor does it depend on AWS Glue data catalog or predefined databases or schemas within the catalog. Therefore, you may need or want to customize this script to better suit your use case. 
@@ -49,8 +49,8 @@ The Glue jobs are configured to pass arguments to the script that determine how 
 
 ```
 usage: load_csv_to_mysql.py [-h] --s3_object S3_OBJECT [--db_host DB_HOST] [--db_port DB_PORT] [--db_name DB_NAME] [--db_user DB_USER] [--db_password DB_PASSWORD] [--db_secret_arn DB_SECRET_ARN]
-                            --table_name TABLE_NAME [--drop_table DROP_TABLE] [--delete_rows DELETE_ROWS] [--delete_mode DELETE_MODE] [--chunk_size CHUNK_SIZE] [--extra-py-files EXTRA_PY_FILES]
-                            [--scriptLocation SCRIPTLOCATION] [--job-bookmark-option JOB_BOOKMARK_OPTION] [--job-language JOB_LANGUAGE] [--connection-names CONNECTION_NAMES]
+                            --table_name TABLE_NAME [--drop_table] [--delete_rows] [--delete_mode DELETE_MODE] [--chunk_size CHUNK_SIZE] [--extra-py-files EXTRA_PY_FILES] [--scriptLocation SCRIPTLOCATION]
+                            [--job-bookmark-option JOB_BOOKMARK_OPTION] [--job-language JOB_LANGUAGE] [--connection-names CONNECTION_NAMES]
 
 Reads a CSV file from S3 and loads records into a table
 
@@ -68,10 +68,8 @@ optional arguments:
                         ARN of AWS Secrets Manager secret containing the credentials for conneting to the database server
   --table_name TABLE_NAME
                         The name of the table that records will be inserted into. NOTE: The table will be created if it does not exist.
-  --drop_table DROP_TABLE
-                        When set, the database table will be dropped if it already exists and recreated.
-  --delete_rows DELETE_ROWS
-                        When set, all existing rows in the table will be dropped.
+  --drop_table          When set, the database table will be dropped if it already exists and recreated.
+  --delete_rows         When set, all existing rows in the table will be dropped.
   --delete_mode DELETE_MODE
                         Set to TRUNCATE OR DELETE to determine how to delete existing rows when --delete_rows is set
   --chunk_size CHUNK_SIZE
