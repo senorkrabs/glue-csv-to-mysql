@@ -110,7 +110,8 @@ con = pymysql.connect(
     user=DB_USER,
     password=DB_PASSWORD,
     database=DB_NAME,
-    port=DB_PORT
+    port=DB_PORT,
+    ssl_ca='./rds-combined-ca-bundle.pem'
 )
 
 dfs = wr.s3.read_csv(
@@ -156,8 +157,7 @@ for df in dfs:
         index=False,
         schema=DB_NAME,
         mode="append",
-        con=con,
-        ssl_ca='./rds-combined-ca-bundle.pem'
+        con=con
     )
     
 
