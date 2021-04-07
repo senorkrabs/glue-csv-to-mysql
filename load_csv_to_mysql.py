@@ -9,6 +9,8 @@ import pymysql
 import logging
 import json
 import sys
+import urllib.request
+
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
@@ -49,6 +51,8 @@ arg_parser.add_argument('--drop_table', action='store_true', required=False, def
 arg_parser.add_argument('--delete_rows', action='store_true', required=False, default=False, help="When set, all existing rows in the table will be dropped.")
 arg_parser.add_argument('--delete_mode', type=str, required=False, default="TRUNCATE", help="Set to TRUNCATE OR DELETE to determine how to delete existing rows when --delete_rows is set")
 arg_parser.add_argument('--chunk_size', type=int, required=False, default=10000, help="How many rows form the csv to process per iteration. More rows requires more memory. Default is 10,000")
+arg_parser.add_argument('--ssl_ca_url', type=str, required=False, default="https://s3.amazonaws.com/rds-downloads/rds-combined-ca-bundle.pem", help="A URL to the SSL CA that will be downloaded and used for RDS authentication.")
+
 
 # Not used, but included because Glue passes these arguments in
 arg_parser.add_argument('--extra-py-files', type=str, required=False, default=None, help="NOT USED")
@@ -74,7 +78,13 @@ DELETE_ROWS = args["delete_rows"]
 DELETE_MODE = args["delete_mode"].strip().upper()
 if DELETE_MODE not in ['TRUNCATE', 'DELETE']: raise arg_parser.error("{} is not a valid delete mode".format(DELETE_MODE))
 CHUNK_SIZE = args["chunk_size"]
+SSL_CA = args["ssl_ca_url"]
 
+log.info('Getting CA Bundle from URL.')
+try:
+    urllib.request.urlretrieve(SSL_CA, './rds-combined-ca-bundle.pem')
+except:
+    log.error('An Unexpected Error Occurred when retrieving the SSL CA bundle...')
 
 if not DB_SECRET_ARN is None:
     # Fetch the password from Secrets Manager
@@ -146,7 +156,8 @@ for df in dfs:
         index=False,
         schema=DB_NAME,
         mode="append",
-        con=con
+        con=con,
+        ssl_ca='./rds-combined-ca-bundle.pem'
     )
     
 
